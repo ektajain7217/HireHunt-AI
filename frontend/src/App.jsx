@@ -139,9 +139,13 @@ const response = await fetch(`${apiBaseUrl}/search`, {
             setSelectedJob(null);
           }}
         >
-          <span className="logo-mark">H</span>
-          <span>HireHunt</span>
-          <span className="ai-text">AI</span>
+          <img
+  src="/hirehunt-icon.svg"
+  alt="HireHunt icon"
+  className="logo-image"
+/>
+<span>HireHunt</span>
+<span className="ai-text">AI</span>
         </a>
 
         <nav className="nav-actions" aria-label="Main navigation">
@@ -403,6 +407,37 @@ const response = await fetch(`${apiBaseUrl}/search`, {
                             {job.short_description}
                           </p>
                         )}
+                        <div className="skill-analysis">
+                          {job.matched_skills?.length > 0 && (
+                            <div className="skill-analysis-group">
+                              <strong>Matched skills</strong>
+                              <p>{job.matched_skills.join(", ")}</p>
+                            </div>
+                          )}
+
+                          {job.skills_not_mentioned?.length > 0 && (
+                            <div className="skill-analysis-group">
+                              <strong>Skills not mentioned in description</strong>
+                              <p>{job.skills_not_mentioned.join(", ")}</p>
+                            </div>
+                          )}
+
+                          {job.improvement_suggestions?.length > 0 && (
+                            <div className="skill-analysis-group">
+                              <strong>Suggestions</strong>
+                              <ul>
+                                {job.improvement_suggestions.map((suggestion, index) => (
+                                  <li key={index}>{suggestion}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {job.skill_analysis_note && (
+                            <small>{job.skill_analysis_note}</small>
+                          )}
+                        </div>
+
 
                         <button
                           className="details-button"

@@ -1108,3 +1108,58 @@ footer span:first-child {
     font-size: 9px;
   }
 }
+/* HireHunt AI - Explainable Skill Analysis */
+.skill-analysis {
+  display: grid;
+  gap: 12px;
+  margin: 4px 0 18px;
+  padding: 15px;
+  border: 1px solid #e8e5f5;
+  border-radius: 14px;
+  background: #faf9ff;
+}
+
+.skill-analysis-group {
+  display: grid;
+  gap: 5px;
+}
+
+.skill-analysis-group strong {
+  color: #42358c;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.035em;
+}
+
+.skill-analysis-group p {
+  margin: 0;
+  color: #39364a;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.skill-analysis-group ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #514d63;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.skill-analysis-group li + li {
+  margin-top: 5px;
+}
+
+.skill-analysis small {
+  color: #777287;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.logo-image {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  border-radius: 10px;
+  flex-shrink: 0;
+}

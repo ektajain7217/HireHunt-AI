@@ -226,6 +226,65 @@ def calculate_match_score(job, role, location, keywords):
     return min(score, 100), reasons
 
 
+def analyze_job_skills(job, keywords):
+    """
+    Compare requested skills with the available job description.
+    Skills not found are described as not mentioned, not definitively missing.
+    """
+
+    description = (
+        str(job.get("title", "")) + " " +
+        str(job.get("short_description", ""))
+    ).lower()
+
+    requested_skills = [
+        skill.strip()
+        for skill in str(keywords or "").split(",")
+        if skill.strip()
+    ]
+
+    matched_skills = []
+    not_mentioned_skills = []
+
+    for skill in requested_skills:
+        if skill.lower() in description:
+            matched_skills.append(skill)
+        else:
+            not_mentioned_skills.append(skill)
+
+    suggestions = []
+
+    if not_mentioned_skills:
+        suggestions.append(
+            "Review the job description or contact the employer to confirm "
+            "whether these skills are required: "
+            + ", ".join(not_mentioned_skills)
+            + "."
+        )
+
+    if matched_skills:
+        suggestions.append(
+            "Highlight relevant projects or experience demonstrating: "
+            + ", ".join(matched_skills)
+            + "."
+        )
+
+    if not requested_skills:
+        suggestions.append(
+            "Add skills to your search preferences for more detailed analysis."
+        )
+
+    return {
+        "matched_skills": matched_skills,
+        "skills_not_mentioned": not_mentioned_skills,
+        "skill_analysis_note": (
+            "Analysis is based on the available job title and short description. "
+            "A skill not mentioned here is not necessarily a skill you lack."
+        ),
+        "improvement_suggestions": suggestions
+    }
+
+
 def rank_jobs(jobs, role, location, keywords):
     """
     Add match score to every job and sort
@@ -245,6 +304,10 @@ def rank_jobs(jobs, role, location, keywords):
 
         job["match_score"] = score
         job["match_reasons"] = reasons
+
+        # Add explainable skill analysis
+        skill_analysis = analyze_job_skills(job, keywords)
+        job.update(skill_analysis)
 
         ranked_jobs.append(job)
 
