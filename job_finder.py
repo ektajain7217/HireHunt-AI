@@ -1,6 +1,8 @@
 import os
 from dotenv import load_dotenv
 from tinyfish import TinyFish
+from urllib.parse import urlparse
+from types import SimpleNamespace
 
 load_dotenv()
 
@@ -8,9 +10,177 @@ if not os.getenv("TINYFISH_API_KEY"):
     raise RuntimeError("TinyFish API key not found in .env")
 
 client = TinyFish()
+def search_and_fetch_jobs(role, location, keywords):
+    """
+    Discover job postings with TinyFish Search
+    and read their content with TinyFish Fetch.
+    """
+    print("TinyFish Search: Discovering job postings...")
 
+    try:
+        search_query = (
+            f'{role} jobs internships {location} {keywords} '
+            'Lever Ashby Greenhouse careers apply'
+        )
 
+        search_response = client.search.query(
+            query=search_query,
+            purpose="Find individual job postings matching user preferences"
+        )
+
+        urls = []
+
+        for result in search_response.results:
+            url = str(result.url or "").strip()
+
+            if not url.startswith("https://"):
+                continue
+
+            if not any(domain in url for domain in [
+                "jobs.lever.co/",
+                "jobs.ashbyhq.com/",
+                "boards.greenhouse.io/"
+            ]):
+                continue
+            from urllib.parse import urlparse
+
+            parsed_url = urlparse(url)
+            path_parts = [
+                part for part in parsed_url.path.split("/")
+                if part
+            ]
+
+            # Skip general company careers pages
+            if len(path_parts) < 2:
+                continue
+
+            # Skip direct application forms
+            if path_parts[-1].lower() == "apply":
+                continue
+            if url not in urls:
+                urls.append(url)
+
+            if len(urls) == 3:
+                break
+
+        if not urls:
+            print("No suitable individual job URLs found.")
+            return []
+
+        print(f"TinyFish Search found {len(urls)} URLs.")
+        print("TinyFish Fetch: Reading job descriptions...")
+
+        fetch_response = client.fetch.get_contents(
+            urls=urls,
+            purpose="Read job titles, locations, descriptions and requirements"
+        )
+
+        fetched_jobs = []
+
+        for page in fetch_response.results:
+            content = str(page.text or "").strip()
+
+            if len(content) < 150:
+                continue
+
+            fetched_jobs.append({
+                "url": str(page.final_url or page.url),
+                "title": str(page.title or ""),
+                "content": content[:4000]
+            })
+
+        print(f"TinyFish Fetch read {len(fetched_jobs)} pages.")
+
+        return fetched_jobs
+
+    except Exception as error:
+        print(f"Search/Fetch failed: {error}")
+        return []
+
+def parse_fetched_jobs(fetched_jobs, requested_location):
+    """
+    Convert fetched Ashby/Lever job pages into structured listings.
+    Skip listings with missing or mismatched locations.
+    """
+    parsed_jobs = []
+
+    for page in fetched_jobs:
+        url = page.get("url", "")
+        content = page.get("content", "")
+        title = page.get("title", "").strip()
+
+        if not url or not title or not content:
+            continue
+
+        parsed_url = urlparse(url)
+        hostname = (parsed_url.hostname or "").lower()
+        path_parts = [
+            part for part in parsed_url.path.split("/") if part
+        ]
+
+        if hostname not in ("jobs.ashbyhq.com", "jobs.lever.co"):
+            continue
+
+        if len(path_parts) < 2:
+            continue
+
+        company = path_parts[0].replace("-", " ").title()
+
+        lines = [line.strip() for line in content.splitlines()]
+
+        location = ""
+
+        if hostname == "jobs.ashbyhq.com":
+            for index, line in enumerate(lines):
+                if line.lower() == "## location":
+                    for next_line in lines[index + 1:]:
+                        if next_line:
+                            location = next_line
+                            break
+                    break
+
+        elif hostname == "jobs.lever.co":
+            for line in lines:
+                if line and not line.startswith("#"):
+                    location = line
+                    break
+
+        if not location:
+            continue
+
+        requested = requested_location.strip().lower()
+
+        if requested == "india":
+            india_terms = [
+                "india", "bengaluru", "bangalore",
+                "delhi", "mumbai", "pune", "hyderabad",
+                "chennai", "gurugram", "gurgaon",
+                "noida", "kolkata", "ahmedabad"
+            ]
+
+            if not any(term in location.lower() for term in india_terms):
+                continue
+
+        elif requested and requested not in location.lower():
+            continue
+
+        description = " ".join(
+            line for line in lines
+            if line and not line.startswith("#")
+        )[:1200]
+
+        parsed_jobs.append({
+            "title": title,
+            "company": company,
+            "location": location,
+            "source": hostname,
+            "job_url": url,
+            "short_description": description
+        })
+
+    return parsed_jobs
 def find_jobs(role, location, keywords):
+    fetched_jobs = search_and_fetch_jobs(role, location, keywords)
     goal = f"""
 You are the live job discovery engine for HireHunt AI.
 
@@ -21,7 +191,6 @@ Location: {location}
 Keywords: {keywords}
 
 Search across multiple job sources and company career pages.
-
 For every genuine listing, return:
 
 - title
@@ -60,7 +229,32 @@ Return ONLY valid JSON in this exact format:
         goal=goal
     )
 
-    return response
+    # Extract jobs discovered by TinyFish Agent
+    agent_jobs = []
+
+    if response.result is not None:
+        raw_result = response.result
+
+        if isinstance(raw_result, dict):
+            agent_jobs = raw_result.get("result", [])
+        elif isinstance(raw_result, list):
+            agent_jobs = raw_result
+
+    if not isinstance(agent_jobs, list):
+        agent_jobs = []
+
+        # Convert fetched job pages into structured listings
+    parsed_jobs = parse_fetched_jobs(fetched_jobs, location)
+
+    # Combine Agent and Search + Fetch results
+    combined_jobs = agent_jobs + parsed_jobs
+
+    print(f"Agent returned {len(agent_jobs)} jobs.")
+    print(f"Search + Fetch returned {len(parsed_jobs)} valid jobs.")
+    print(f"Combined jobs before deduplication: {len(combined_jobs)}")
+
+    # Preserve the response format expected by clean_jobs()
+    return SimpleNamespace(result={"result": combined_jobs})
 
 
 def clean_jobs(response):
